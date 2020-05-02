@@ -64,8 +64,8 @@ void valveHardware::ConnectHWdevice(HWdev_t* dev) {
     pcf8574->begin();
     dev->Device = pcf8574;
   } else if(dev->HWType == TB6612) {
-    tb6612* motor = new tb6612();
-    motor->init(dev->i2cAddress); 
+    MotorDriver* motor = new MotorDriver();
+    motor->init(dev->i2cAddress);
     dev->Device = motor;
   }
 
@@ -87,12 +87,13 @@ HWdev_t* valveHardware::RegisterPort(uint8_t Port) {
   addI2CDevice(PortMap.i2cAddress);
   HWdev_t* t = getI2CDevice(PortMap.i2cAddress);
   if(t->HWType == PCF) {
+    Serial.println("erstelle PCF Device");
     PCF8574* pcf8574 = static_cast<PCF8574*>(t->Device);
     pcf8574->pinMode(PortMap.internalPort, OUTPUT);
     pcf8574->digitalWrite(PortMap.internalPort, HIGH);
   } else if (t->HWType == TB6612) {
-    tb6612* motor = static_cast<tb6612*>(t->Device);
-    motor->setOff(PortMap.internalPort);
+    MotorDriver* motor = static_cast<MotorDriver*>(t->Device);
+    motor->dcMotorStop(TB6612MotorChanType(PortMap.internalPort));
   } else if (t->HWType == GPIO) {
     pinMode(PortMap.internalPort, OUTPUT);
     digitalWrite(PortMap.internalPort, LOW);
@@ -135,12 +136,16 @@ void valveHardware::SetPort(HWdev_t* dev, uint8_t Port1, uint8_t Port2, bool sta
     if (Port2) {pcf8574->digitalWrite(PortMap1.internalPort, HIGH); }
     if (Port2) {pcf8574->digitalWrite(PortMap2.internalPort, HIGH); }
   } else if (dev->HWType == TB6612) {
-    tb6612* motor = static_cast<tb6612*>(dev->Device);
+    MotorDriver* motor = static_cast<MotorDriver*>(dev->Device);
     if (duration) {
-      motor->setOn(PortMap1.internalPort, state);
+      motor->dcMotorRun(TB6612MotorChanType(PortMap1.internalPort), (state?255:-255));
       delay(duration);
-      motor->setOff(PortMap1.internalPort);
-    } 
+      motor->dcMotorStop(TB6612MotorChanType(PortMap1.internalPort));
+    } else if (state) {
+      motor->dcMotorRun(TB6612MotorChanType(PortMap1.internalPort), 255);
+    } else if (!state) {
+      motor->dcMotorStop(TB6612MotorChanType(PortMap1.internalPort));
+    }
     // Port 2 nicht relevant
   } else if (dev->HWType == GPIO) {
     digitalWrite(PortMap1.internalPort,  state);
