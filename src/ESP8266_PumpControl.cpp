@@ -1,8 +1,10 @@
 #pragma once
 
+/* ESP8266 Board Library 2.6.3  */
+
 /*#include <Wire.h>
 #include "PCF8574.h"
-#include "Grove_Motor_Driver_TB6612FNG.h"
+#include "WEMOS_Motor.h"
 #include "SSD1306Wire.h"
 #include <ArduinoJson.h>
 #include <i2cdetect.h>
@@ -34,8 +36,6 @@ sensor* LevelSensor = NULL;
 OLED* oled = NULL;
 WebServer* webserver = NULL;
 
-
-
 void myMQTTCallBack(char* topic, byte* payload, unsigned int length) {
   String msg;
   Serial.print("Message arrived [");Serial.print(topic);Serial.print("] ");
@@ -60,9 +60,6 @@ void setup() {
 // Flash Write Issue
 // https://github.com/esp8266/Arduino/issues/4061#issuecomment-428007580
 
-  //clean FS, for testing
-  //SPIFFS.format();
-
   oled = new OLED();
   Config = new BaseConfig();
 
@@ -83,10 +80,13 @@ void setup() {
 }
 
 
+
 void loop() {
   // put your main code here, to run repeatedly:
   VStruct->loop();
   mqtt->loop();
   LevelSensor->loop();
   webserver->loop();
+  Config->loop();
 }
+

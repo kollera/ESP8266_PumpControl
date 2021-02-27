@@ -26,17 +26,17 @@ WebServer::WebServer() : DoReboot(false) {
   server->on("/StoreVentilConfig", HTTP_POST, [this]() { this->ReceiveJSONConfiguration(VENTILE); });
   server->on("/StoreRelations", HTTP_POST, [this]()    { this->ReceiveJSONConfiguration(RELATIONS); });
   server->on("/reboot", HTTP_GET, [this]()             { this->handleReboot(); });
+  server->on("/reset", HTTP_GET, [this]()              { this->handleReset(); });
+  server->on("/wifireset", HTTP_GET, [this]()          { this->handleWiFiReset(); });
 
+  
   server->on("/ajax", [this]() {this->handleAjax(); });
   
   Serial.println(F("WebServer started..."));
-
-  //UpTime = new uptime();
 }
 
 void WebServer::loop() {
   server->handleClient();
-  //UpTime->loop(); -> verursacht ESP Absturz
   if (this->DoReboot) {ESP.restart();}
 }
 
@@ -80,6 +80,17 @@ void WebServer::handleReboot() {
   server->send(303); 
   this->DoReboot = true;  
 }
+
+void WebServer::handleReset() {
+  SPIFFS.format();
+  this->handleReboot();
+}
+
+void WebServer::handleWiFiReset() {
+  ESP.eraseConfig();
+  this->handleReboot();
+}
+
 
 void WebServer::handleBaseConfig() {
   String html;
@@ -163,7 +174,7 @@ void WebServer::handleAjax() {
     String action, newState; 
     uint8_t port;
         
-    if (jsonGet.containsKey("action")) {action = jsonGet["action"].as<String>();}
+    if (jsonGet.containsKey("action"))   {action = jsonGet["action"].as<String>();}
     if (jsonGet.containsKey("newState")) { newState = jsonGet["newState"].as<String>(); }
     if (jsonGet.containsKey("port"))     { port = atoi(jsonGet["port"]); }
 
@@ -184,6 +195,17 @@ void WebServer::handleAjax() {
         jsonReturn["accepted"] = 1;
       }
     }
+
+    if (action && newState && strcmp(action.c_str(), "InstallRelease")==0) {
+      Config->InstallRelease(atoi(newState.c_str()));  
+      jsonReturn["accepted"] = 1;  
+    }
+
+    if (action && strcmp(action.c_str(), "RefreshReleases")==0) {
+      Config->RefreshReleases();  
+      jsonReturn["accepted"] = 1;  
+    }
+    
   } else { RaiseError = true; }
 
   if (RaiseError) {
@@ -212,12 +234,17 @@ void WebServer::getPageHeader(String* html, page_t pageactive) {
   html->concat("<body>\n");
   html->concat("<table>\n");
   html->concat("  <tr>\n");
-  html->concat("   <td colspan='8'>\n");
-  html->concat("<h2>Konfiguration</h2>");
+  html->concat("   <td colspan='4'>\n");
+  html->concat("     <h2>Konfiguration</h2>\n");
   html->concat("   </td>\n");
 
-  sprintf(buffer, "     <h6>Release: %s of %s %s </h6>\n", Release, __DATE__, __TIME__);
+  html->concat("   <td colspan='4' style='color:#CCCCCC;'>\n");
+  sprintf(buffer, "   <i>(%s)</i>\n", Config->GetMqttRoot().c_str());
+  html->concat(buffer);
+  html->concat("   </td>\n");
+
   html->concat("   <td colspan='5'>\n");
+  sprintf(buffer, "     <b>Release: </b><span style='color:orange;'>%s</span><br>of %s %s", Config->GetReleaseName().c_str(), __DATE__, __TIME__);
   html->concat(buffer);
   html->concat("   </td>\n");
   html->concat(" </tr>\n");
@@ -243,15 +270,13 @@ void WebServer::getPageHeader(String* html, page_t pageactive) {
   html->concat("   <td class='navi' style='width: 50px'></td>\n");
   html->concat(" </tr>\n");
   html->concat("  <tr>\n");
-  html->concat("   <td colspan='11'>\n");
+  html->concat("   <td colspan='13'>\n");
   html->concat("   <p />\n");
 }
 
 void WebServer::getPageFooter(String* html) {
-  /*html->concat("  </td></tr>\n");
   html->concat("</table>\n");
   html->concat("</body>\n");
-*/
   html->concat("</html>\n");
 }
 
@@ -342,15 +367,25 @@ void WebServer::getPage_Status(String* html) {
   }
 
   html->concat("<tr>\n");
-  html->concat("<td>Firmware Update</td>\n");
-  html->concat("<td><form action='update'><input class='button' type='submit' value='Update' /></form></td>\n");
+  html->concat("  <td>Firmware Update</td>\n");
+  html->concat("  <td><form action='update'><input class='button' type='submit' value='Update' /></form></td>\n");
   html->concat("</tr>\n");
 
   html->concat("<tr>\n");
-  html->concat("<td>Device Reboot</td>\n");
-  html->concat("<td><form action='reboot'><input class='button' type='submit' value='Reboot' /></form></td>\n");
+  html->concat("  <td>Device Reboot</td>\n");
+  html->concat("  <td><form action='reboot'><input class='button' type='submit' value='Reboot' /></form></td>\n");
   html->concat("</tr>\n");
 
+  html->concat("<tr>\n");
+  html->concat("  <td>Werkszustand herstellen (ohne WiFi)</td>\n");
+  html->concat("  <td><form action='reset'><input class='button' type='submit' value='Reset' /></form></td>\n");
+  html->concat("</tr>\n");
+
+  html->concat("<tr>\n");
+  html->concat("  <td>WiFi Zugangsdaten entfernen</td>\n");
+  html->concat("  <td><form action='wifireset'><input class='button' type='submit' value='WifiReset' /></form></td>\n");
+  html->concat("</tr>\n");
+  
   html->concat("</tbody>\n");
   html->concat("</table>\n");     
 }

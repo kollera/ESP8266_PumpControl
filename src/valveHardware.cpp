@@ -76,6 +76,10 @@ void valveHardware::ConnectHWdevice(HWdev_t* dev) {
 }
 
 HWdev_t* valveHardware::RegisterPort(uint8_t Port) {
+  return this->RegisterPort(Port, false);
+}
+
+HWdev_t* valveHardware::RegisterPort(uint8_t Port, bool reverse) {
   char buffer[200] = {0};
   memset(buffer, 0, sizeof(buffer));
   sprintf(buffer, "Fordere Registrierung Port %d an", Port);
@@ -90,13 +94,13 @@ HWdev_t* valveHardware::RegisterPort(uint8_t Port) {
     Serial.println("erstelle PCF Device");
     PCF8574* pcf8574 = static_cast<PCF8574*>(t->Device);
     pcf8574->pinMode(PortMap.internalPort, OUTPUT);
-    pcf8574->digitalWrite(PortMap.internalPort, HIGH);
+    pcf8574->digitalWrite(PortMap.internalPort, !reverse); // normal: HIGH
   } else if (t->HWType == TB6612) {
     MotorDriver* motor = static_cast<MotorDriver*>(t->Device);
     motor->dcMotorStop(TB6612MotorChanType(PortMap.internalPort));
   } else if (t->HWType == GPIO) {
     pinMode(PortMap.internalPort, OUTPUT);
-    digitalWrite(PortMap.internalPort, LOW);
+    digitalWrite(PortMap.internalPort, reverse); // normal: LOW
   }
 
   memset(buffer, 0, sizeof(buffer));
@@ -120,11 +124,11 @@ uint8_t valveHardware::GetI2CAddress(uint8_t Port) {
   return PortMap.i2cAddress;
 }
 
-void valveHardware::SetPort(HWdev_t* dev, uint8_t Port, bool state) {
-  SetPort(dev, Port, NULL, state, NULL);
+void valveHardware::SetPort(HWdev_t* dev, uint8_t Port, bool state, bool reverse) {
+  SetPort(dev, Port, NULL, state, reverse, NULL);
 }
 
-void valveHardware::SetPort(HWdev_t* dev, uint8_t Port1, uint8_t Port2, bool state, uint16_t duration) {
+void valveHardware::SetPort(HWdev_t* dev, uint8_t Port1, uint8_t Port2, bool state, bool reverse, uint16_t duration) {
   PortMap_t PortMap1, PortMap2;
   PortMap1.Port = Port1; PortMap2.Port = Port2;
   PortMapping(&PortMap1); PortMapping(&PortMap2); // need internalPort
@@ -133,8 +137,8 @@ void valveHardware::SetPort(HWdev_t* dev, uint8_t Port1, uint8_t Port2, bool sta
     pcf8574->digitalWrite(PortMap1.internalPort, !state); 
     if (Port2) {pcf8574->digitalWrite(PortMap2.internalPort, state); }
     if (duration) {delay(duration);}
-    if (Port2) {pcf8574->digitalWrite(PortMap1.internalPort, HIGH); }
-    if (Port2) {pcf8574->digitalWrite(PortMap2.internalPort, HIGH); }
+    if (Port2) {pcf8574->digitalWrite(PortMap1.internalPort, !reverse); } // Normal: HIGH
+    if (Port2) {pcf8574->digitalWrite(PortMap2.internalPort, !reverse); } // Normal: HIGH
   } else if (dev->HWType == TB6612) {
     MotorDriver* motor = static_cast<MotorDriver*>(dev->Device);
     if (duration) {
@@ -150,9 +154,9 @@ void valveHardware::SetPort(HWdev_t* dev, uint8_t Port1, uint8_t Port2, bool sta
   } else if (dev->HWType == GPIO) {
     digitalWrite(PortMap1.internalPort,  state);
     if (Port2) {
-      digitalWrite(PortMap2.internalPort, HIGH);
+      digitalWrite(PortMap2.internalPort, !reverse); // Normal: HIGH
       delay(duration);
-      digitalWrite(PortMap2.internalPort, LOW);
+      digitalWrite(PortMap2.internalPort, reverse); // Normal: LOW
     }
   }
   
@@ -281,5 +285,3 @@ void valveHardware::PortMapping(PortMap_t* Map) {
     Map->Port = 0;
   }
 }
-
-
